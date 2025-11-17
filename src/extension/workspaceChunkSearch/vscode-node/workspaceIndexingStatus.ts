@@ -112,13 +112,12 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 
 	private async _updateStatusItem(): Promise<void> {
 		const id = ++this.currentUpdateRequestId;
-		this._logService.trace(`ChatStatusWorkspaceIndexingStatus::updateStatusItem(id=${id}): starting`);
+		this._logService.info(`ChatStatusWorkspaceIndexingStatus::updateStatusItem(id=${id}): starting`);
 
 		const state = await this._statusReporter.getIndexState();
-
 		// Make sure a new request hasn't come in since we started
 		if (id !== this.currentUpdateRequestId) {
-			this._logService.trace(`ChatStatusWorkspaceIndexingStatus::updateStatusItem(id=${id}): skipping`);
+			this._logService.info(`ChatStatusWorkspaceIndexingStatus::updateStatusItem(id=${id}): skipping`);
 			return;
 		}
 
@@ -144,10 +143,12 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 			case 'loaded': {
 				if (state.remoteIndexState.repos.length > 0) {
 					if (state.remoteIndexState.repos.every(repo => repo.status === RepoStatus.NotIndexable)) {
+						this._logService.info(`[index state] ChatStatusWorkspaceIndexingStatus::updateStatusItem(id=${id}): all remote indexes not indexable`);
 						break;
 					}
 
 					if (state.remoteIndexState.repos.every(repo => repo.status === RepoStatus.Ready)) {
+						this._logService.info(`[index state] ChatStatusWorkspaceIndexingStatus::updateStatusItem(id=${id}): all remote indexes ready`);
 						return this._writeStatusItem({
 							title: remotelyIndexedMessage,
 							details: undefined
@@ -155,6 +156,7 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 					}
 
 					if (state.remoteIndexState.repos.some(repo => repo.status === RepoStatus.CheckingStatus || repo.status === RepoStatus.Initializing)) {
+						this._logService.info(`[index state] ChatStatusWorkspaceIndexingStatus::updateStatusItem(id=${id}): some remote indexes checking status`);
 						return this._writeStatusItem({
 							title: {
 								title: t('Remote index'),
@@ -168,6 +170,7 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 					}
 
 					if (state.remoteIndexState.repos.some(repo => repo.status === RepoStatus.BuildingIndex)) {
+						this._logService.info(`[index state] ChatStatusWorkspaceIndexingStatus::updateStatusItem(id=${id}): some remote indexes building`);
 						return this._writeStatusItem({
 							title: remotelyIndexedMessage,
 							details: {
@@ -178,11 +181,16 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 					}
 
 					if (state.remoteIndexState.repos.some(repo => repo.status === RepoStatus.NotYetIndexed)) {
+						this._logService.info(`[index state] ChatStatusWorkspaceIndexingStatus::updateStatusItem(id=${id}): some remote indexes not yet indexed`);
 						const local = await this.getLocalIndexStatusItem(state);
 						if (id !== this.currentUpdateRequestId) {
 							return;
 						}
-
+						if (state.remoteIndexState.repos.every(repo => repo.status === RepoStatus.NotYetIndexed)) {
+							this._logService.info(`[index state] ChatStatusWorkspaceIndexingStatus::updateStatusItem(id=${id}): all remote indexes not yet indexed`);
+						} else {
+							this._logService.info(`[index state] ChatStatusWorkspaceIndexingStatus::updateStatusItem(id=${id}): some remote indexes not yet indexed, some in other states`);
+						}
 						return this._writeStatusItem({
 							title: local ? local.title : {
 								title: state.remoteIndexState.repos.every(repo => repo.status === RepoStatus.NotYetIndexed)
@@ -203,7 +211,11 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 
 					if (errorRepos.length > 0) {
 						const inaccessibleRepo = errorRepos[0] as ResolvedRepoEntry;
-
+						if (readyRepos.length === 0) {
+							this._logService.info(`[index state] ChatStatusWorkspaceIndexingStatus::updateStatusItem(id=${id}): no remote indexes ready, only inaccessible ones`);
+						} else {
+							this._logService.info(`[index state] ChatStatusWorkspaceIndexingStatus::updateStatusItem(id=${id}): some remote indexes ready, some inaccessible`);
+						}
 						return this._writeStatusItem({
 							title: {
 								title: readyRepos.length
@@ -228,9 +240,10 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 		// For local indexing
 		const localStatus = await this.getLocalIndexStatusItem(state);
 		if (id !== this.currentUpdateRequestId) {
+			this._logService.info(`[index state] ChatStatusWorkspaceIndexingStatus::updateStatusItem(id=${id}): skipping after getLocalIndexStatusItem`);
 			return;
 		}
-
+		this._logService.info(`[index state] ChatStatusWorkspaceIndexingStatus::updateStatusItem(id=${id}): writing local index status`);
 		this._writeStatusItem(localStatus);
 	}
 
